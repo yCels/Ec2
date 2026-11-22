@@ -3,6 +3,18 @@ const path = require('path');
 const pool = require('./db');
 
 const app = express();
+
+// Nome desta cópia da aplicação (app1 / app2), definido no docker-compose.yml.
+// Serve para ver o load balancer do Nginx alternando entre as instâncias.
+const INSTANCE = process.env.INSTANCE || 'app';
+app.use((req, res, next) => {
+  res.set('X-Instance', INSTANCE);
+  next();
+});
+
+// Health check: o Nginx/monitoramento consulta para saber se a instância está viva
+app.get('/health', (req, res) => res.json({ status: 'ok', instance: INSTANCE }));
+
 app.use(express.json());
 app.use(express.static(path.join(__dirname, '..', 'public')));
 
@@ -73,4 +85,4 @@ app.use((err, req, res, next) => {
 });
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`Servidor rodando em http://localhost:${PORT}`));
+app.listen(PORT, () => console.log(`[${INSTANCE}] Servidor rodando em http://localhost:${PORT}`));

@@ -1,4 +1,5 @@
 services:
+  # Banco de dados PostgreSQL (um só, compartilhado pelas duas cópias da app)
   db:
     image: postgres:16-alpine
     restart: unless-stopped
@@ -6,10 +7,11 @@ services:
       POSTGRES_USER: ${DB_USER:-postgres}
       POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres}
       POSTGRES_DB: ${DB_NAME:-todo}
+    # 127.0.0.1 = só acessível de dentro da própria EC2 (o Docker ignora o ufw!)
     ports:
-      - "${DB_PORT_HOST:-5433}:5432"
+      - "127.0.0.1:${DB_PORT_HOST:-5433}:5432"
     volumes:
-      - pgdata:/var/lib/postgresql/data
+      - pgdata:/var/lib/postgresql/data              # persistência dos dados
       - ./db/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-postgres} -d ${DB_NAME:-todo}"]
@@ -17,10 +19,13 @@ services:
       timeout: 5s
       retries: 10
 
-  app:
+  # Cópia 1 da aplicação -> Nginx acessa em 127.0.0.1:3001
+  app1:
     build: .
+    image: todo-app
     restart: unless-stopped
     environment:
+      INSTANCE: app1
       DB_HOST: db
       DB_PORT: 5432
       DB_USER: ${DB_USER:-postgres}
@@ -28,10 +33,31 @@ services:
       DB_NAME: ${DB_NAME:-todo}
       PORT: 3000
     ports:
-      - "${APP_PORT:-3000}:3000"
+      - "127.0.0.1:3001:3000"
     depends_on:
       db:
         condition: service_healthy
+
+  # Cópia 2 da aplicação (mesma imagem) -> Nginx acessa em 127.0.0.1:3002
+  app2:
+    image: todo-app
+    pull_policy: never   # usa a imagem local construída pela app1 (não tenta baixar do Docker Hub)
+    restart: unless-stopped
+    environment:
+      INSTANCE: app2
+      DB_HOST: db
+      DB_PORT: 5432
+      DB_USER: ${DB_USER:-postgres}
+      DB_PASSWORD: ${DB_PASSWORD:-postgres}
+      DB_NAME: ${DB_NAME:-todo}
+      PORT: 3000
+    ports:
+      - "127.0.0.1:3002:3000"
+    depends_on:
+      db:
+        condition: service_healthy
+      app1:
+        condition: service_started   # garante que a imagem todo-app já foi construída
 
 volumes:
   pgdata:

@@ -22,6 +22,7 @@
     li input[type=text] { flex: 1; padding: 6px 8px; font-size: 15px; }
     .error { color: #dc2626; margin: 0 0 8px; min-height: 1em; }
     .empty { color: #6b7280; text-align: center; padding: 16px; }
+    .instance { margin: 16px 0 0; font-size: 13px; color: #6b7280; text-align: right; }
   </style>
 </head>
 <body>
@@ -33,6 +34,7 @@
     </form>
     <p id="error" class="error"></p>
     <ul id="list"></ul>
+    <p class="instance">Atendido por: <strong id="instance">-</strong></p>
   </div>
 
   <script>
@@ -43,6 +45,8 @@
     async function request(url, options = {}) {
       errorBox.textContent = '';
       const res = await fetch(url, { headers: { 'Content-Type': 'application/json' }, ...options });
+      // mostra qual cópia da aplicação (app1/app2) respondeu, vinda do load balancer
+      document.getElementById('instance').textContent = res.headers.get('X-Instance') || '-';
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));
         errorBox.textContent = body.error || 'Erro na requisição';
